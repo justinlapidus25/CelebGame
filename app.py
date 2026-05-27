@@ -349,12 +349,13 @@ with main_col:
 
         with col3:
             answer_value = st.text_input(
-                label=f"{key}",
-                value=st.session_state.answers.get(key, ""),
-                label_visibility="collapsed",
-                disabled=remaining == 0,
-                key=f"input_{key}"
-            )
+    label=f"{key}",
+    value=st.session_state.answers.get(key, ""),
+    label_visibility="collapsed",
+    disabled=remaining == 0,
+    key=f"input_{key}",
+    autocomplete="off"
+)
 
             st.session_state.answers[key] = answer_value
 
