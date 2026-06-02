@@ -1,381 +1,498 @@
 import streamlit as st
 import pandas as pd
 import random
-import string
 import time
-from rapidfuzz import process, fuzz
+import datetime
+import unicodedata
+from difflib import get_close_matches
 
 st.set_page_config(
-    page_title="Celebrity Initials Game",
-    page_icon="🎬",
+    page_title="Celebrity Alphabet Game",
     layout="wide"
 )
 
-EXCLUDED_LAST_INITIALS = ["X", "Z", "Q", "U", "V", "I", "O", "Y"]
-EXCLUDED_FIRST_INITIALS = ["Z", "Q", "Y", "U", "I", "X"]
-
-GAME_SECONDS = 300
-
+# -----------------------------
+# CSS
+# -----------------------------
 st.markdown("""
 <style>
 
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Fredoka', sans-serif;
+}
+
 .stApp {
-    background: black;
+
+    background: linear-gradient(
+        135deg,
+        #FFE6F2 0%,
+        #E3F8FF 50%,
+        #FFF4CC 100%
+    );
+
 }
 
-.block-container {
-    padding-top: .3rem;
-    padding-bottom: 0rem;
-    max-width: 100%;
+
+/* TITLE */
+.title {
+
+    font-size: 58px;
+
+    font-weight:700;
+
+    color:#5A3E85;
+
+    margin-bottom:5px;
+
+    text-shadow:
+    3px 3px white;
+
 }
 
-h1, h2, h3, p, label, span, div {
-    font-weight: 900 !important;
+
+/* Subtitle */
+.subtitle {
+
+    font-size:20px;
+
+    color:#675875;
+
+    margin-bottom:30px;
+
 }
 
-.big-title {
-    text-align: center;
-    font-size: 68px;
-    color: #FFD700 !important;
-    margin-bottom: 10px;
+
+/* Sidebar */
+.sidebar-box {
+
+    background:white;
+
+    padding:25px;
+
+    border-radius:28px;
+
+    border:3px solid white;
+
+    box-shadow:
+    0px 10px 30px rgba(90,70,130,.18);
+
 }
 
-.rules-box {
-    background: linear-gradient(90deg, #ffcc00, #ffffff);
-    color: black !important;
-    padding: 12px;
-    border-radius: 16px;
-    margin-bottom: 20px;
-    text-align: center;
-}
 
-.rules-box p {
-    font-size: 21px !important;
-    margin: 0px;
-}
-
+/* Big Letter Tiles */
 .letter-box {
-    background: linear-gradient(135deg, #ffd400, #ff9d00);
-    color: black !important;
-    border-radius: 12px;
-    text-align: center;
-    font-size: 24px !important;
-    height: 48px;
-    line-height: 48px;
-    box-shadow: 0px 0px 10px rgba(255,180,0,.45);
+
+    background: linear-gradient(
+        135deg,
+        #7C6DFF,
+        #FF7ACD
+    );
+
+    color:white;
+
+    border-radius:20px;
+
+    border:4px solid white;
+
+    text-align:center;
+
+    padding:12px;
+
+    font-size:30px;
+
+    font-weight:700;
+
+    box-shadow:
+    0px 6px 18px rgba(80,60,120,.30);
+
 }
 
-.stTextInput {
-    margin-bottom: -4px;
-}
 
+/* Inputs */
 .stTextInput input {
-    font-size: 28px !important;
-    color: black !important;
-    background: white !important;
-    border: none !important;
-    border-radius: 14px;
-    padding: 4px 14px;
-    height: 52px;
-    width: 100% !important;
-    text-align: center;
-    box-shadow: 0px 0px 10px rgba(255,255,255,.18);
+
+    background:white;
+
+    border-radius:18px;
+
+    border:3px solid #D8CCFF;
+
+    padding:12px;
+
+    font-size:20px;
+
+    font-weight:600;
+
 }
 
-.timer-box {
-    background: linear-gradient(135deg, #ff4d4d, #990000);
-    padding: 18px;
-    border-radius: 18px;
-    text-align: center;
-    margin-bottom: 14px;
+
+/* Buttons */
+.stButton button {
+
+    background: linear-gradient(
+        135deg,
+        #8E7CFF,
+        #FF8FD8
+    );
+
+    color:white;
+
+    border-radius:18px;
+
+    border:none;
+
+    font-weight:700;
+
+    font-size:17px;
+
 }
 
-.timer-box h2 {
-    color: white !important;
-    font-size: 22px !important;
-    margin: 0px;
-}
-
-.timer-box p {
-    color: #FFD700 !important;
-    font-size: 42px !important;
-    margin: 0px;
-}
-
-.score-box {
-    background: linear-gradient(135deg, #FFD700, #ffae00);
-    padding: 18px;
-    border-radius: 18px;
-    text-align: center;
-    margin-bottom: 14px;
-}
-
-.score-box h2 {
-    color: black !important;
-    font-size: 22px !important;
-    margin: 0px;
-}
-
-.score-box p {
-    color: #660000 !important;
-    font-size: 42px !important;
-    margin: 0px;
-}
-
-.side-panel {
-    position: sticky;
-    top: 20px;
-    z-index: 999;
-}
-
-.stButton > button {
-    background: linear-gradient(135deg, #ffcc00, #ff9900);
-    color: black !important;
-    border-radius: 12px;
-    border: none;
-    font-size: 18px !important;
-    padding: 10px 12px;
-    width: 100%;
-    margin-bottom: 10px;
-}
 
 .correct-label {
-    color: #00ff66 !important;
-    font-size: 24px !important;
-    text-align: center;
-    margin-top: 6px;
+
+    color:#20A65A;
+
+    font-size:30px;
+
 }
 
 .close-label {
-    color: #FFD700 !important;
-    font-size: 24px !important;
-    text-align: center;
-    margin-top: 6px;
+
+    color:#D99A00;
+
+    font-size:30px;
+
 }
 
 .wrong-label {
-    color: #ff4d4d !important;
-    font-size: 24px !important;
-    text-align: center;
-    margin-top: 6px;
+
+    color:#E84C61;
+
+    font-size:30px;
+
 }
 
 .row-divider {
-    height: 18px;
-}
 
-div[data-testid="column"] {
-    padding: 0px !important;
+    border-bottom:2px solid rgba(255,255,255,.7);
+
+    margin:10px 0;
+
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-df = pd.read_csv("my_celebs.csv")
-names = df["Name"].dropna().astype(str).tolist()
 
-def get_initials(name):
-    parts = name.split()
+# -----------------------------
+# Load Data
+# -----------------------------
+@st.cache_data
+def load_names():
 
-    if len(parts) >= 2:
-        return parts[0][0].upper(), parts[-1][0].upper()
+    df = pd.read_csv("combined_names.csv")
 
-    return None, None
+    return sorted(
+        set(
+            df["Name"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+        )
+    )
 
-def get_valid_names(first_letter, last_letter):
-    valid = []
 
-    for name in names:
-        first, last = get_initials(name)
+celebrity_names = load_names()
 
-        if last in EXCLUDED_LAST_INITIALS:
-            continue
 
-        if first in EXCLUDED_FIRST_INITIALS:
-            continue
+def normalize_name(name):
 
-        if first == first_letter and last == last_letter:
-            valid.append(name)
+    name = name.lower().strip()
 
-    return valid
+    name = unicodedata.normalize(
+        "NFKD",
+        name
+    )
 
-def make_board():
-    possible_last_letters = [
-        letter for letter in string.ascii_uppercase
-        if letter not in EXCLUDED_LAST_INITIALS
-    ]
+    return "".join(
+        c for c in name 
+        if not unicodedata.combining(c)
+    )
 
-    possible_first_letters = [
-        letter for letter in string.ascii_uppercase
-        if letter not in EXCLUDED_FIRST_INITIALS
-    ]
 
-    board = {}
+normalized_names = {
+    normalize_name(x):x 
+    for x in celebrity_names
+}
 
-    for first_letter in possible_first_letters:
-        valid_last_letters = [
-            last_letter for last_letter in possible_last_letters
-            if len(get_valid_names(first_letter, last_letter)) > 0
-        ]
 
-        if valid_last_letters:
-            board[first_letter] = random.choice(valid_last_letters)
+# -----------------------------
+# Game Setup
+# -----------------------------
+LETTERS = [
 
-    return board
+"A","B","C","D","E",
+"F","G","H","J","K",
+"L","M","N","O","P",
+"R","S","T","V","W"
+
+]
+
+
+def make_board(seed=None):
+
+    rng=random.Random(seed)
+
+    first=LETTERS.copy()
+    last=LETTERS.copy()
+
+    rng.shuffle(first)
+    rng.shuffle(last)
+
+    return dict(
+        zip(first,last)
+    )
+
+
+def daily_seed():
+
+    return int(
+        datetime.date.today()
+        .strftime("%Y%m%d")
+    )
+
+
+def start_daily():
+
+    st.session_state.mode="Daily Puzzle"
+
+    st.session_state.board=make_board(
+        daily_seed()
+    )
+
+    st.session_state.answers={}
+
+    st.session_state.submitted=False
+
+    st.session_state.start=time.time()
+
+
+
+def start_random():
+
+    st.session_state.mode="Random Game"
+
+    st.session_state.board=make_board()
+
+    st.session_state.answers={}
+
+    st.session_state.submitted=False
+
+    st.session_state.start=time.time()
+
+
 
 if "board" not in st.session_state:
-    st.session_state.board = make_board()
 
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
+    start_daily()
 
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
 
-if "start_time" not in st.session_state:
-    st.session_state.start_time = time.time()
 
-elapsed = time.time() - st.session_state.start_time
-remaining = max(0, GAME_SECONDS - int(elapsed))
+# -----------------------------
+# Checking
+# -----------------------------
+def valid(answer,a,b):
 
-minutes = remaining // 60
-seconds = remaining % 60
+    answer=normalize_name(answer)
 
-total_rows = len(st.session_state.board)
+    if answer in normalized_names:
 
-score = 0
-correct_keys = []
-close_keys = []
-wrong_keys = []
+        parts=normalized_names[answer].split()
 
-if st.session_state.submitted or remaining == 0:
-    for first_letter, last_letter in st.session_state.board.items():
-        key = f"{first_letter}{last_letter}"
+        return (
+            parts[0][0].upper()==a
+            and
+            parts[-1][0].upper()==b
+        )
 
-        answer = st.session_state.answers.get(key, "").strip().lower()
+    return False
 
-        valid_names = get_valid_names(first_letter, last_letter)
-        valid_lower = [name.lower() for name in valid_names]
 
-        if answer in valid_lower:
-            score += 1
-            correct_keys.append(key)
 
-        elif answer != "":
-            match = process.extractOne(
-                answer,
-                valid_lower,
-                scorer=fuzz.ratio
-            )
+# -----------------------------
+# Timer 5 minutes
+# -----------------------------
+GAME_SECONDS=300
 
-            if match and match[1] >= 82:
-                close_keys.append(key)
-            else:
-                wrong_keys.append(key)
+remaining=max(
+    0,
+    GAME_SECONDS-int(
+        time.time()-st.session_state.start
+    )
+)
+
+minutes=remaining//60
+
+seconds=remaining%60
+
+
+
+correct=[]
+wrong=[]
+
+if st.session_state.submitted:
+
+    for a,b in st.session_state.board.items():
+
+        key=a+b
+
+        if valid(
+            st.session_state.answers.get(key,""),
+            a,b
+        ):
+            correct.append(key)
+
+        else:
+            wrong.append(key)
+
+
+score=len(correct)
+
+
+
+# -----------------------------
+# Page
+# -----------------------------
+today=datetime.date.today().strftime(
+    "%A, %B %d, %Y"
+)
+
 
 st.markdown(
-    '<div class="big-title">🎬 Celebrity Initials Game 🎬</div>',
+    '<div class="title">Celebrity Alphabet Game</div>',
     unsafe_allow_html=True
 )
 
-st.markdown("""
-<div class="rules-box">
-<p>
-Guess one celebrity for each row • Left letter = first initial • Right letter = last initial • Example: E L = Eva Longoria • 🟡 means close spelling
-</p>
-</div>
-""", unsafe_allow_html=True)
-
-main_col, side_col = st.columns([6.3, 1.4])
-
-with side_col:
-    st.markdown('<div class="side-panel">', unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div class="timer-box">
-            <h2>⏱ TIME</h2>
-            <p>{minutes}:{seconds:02d}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f"""
-        <div class="score-box">
-            <h2>🏆 SCORE</h2>
-            <p>{score}/{total_rows}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    if st.button("Submit"):
-        st.session_state.submitted = True
-        st.rerun()
-
-    if st.button("New Game"):
-        st.session_state.board = make_board()
-        st.session_state.answers = {}
-        st.session_state.submitted = False
-        st.session_state.start_time = time.time()
-        st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with main_col:
-    for first_letter, last_letter in st.session_state.board.items():
-        key = f"{first_letter}{last_letter}"
-
-        col1, col2, spacer1, col3, spacer2, col4 = st.columns(
-            [0.55, 0.55, 0.4, 2.8, 0.4, 0.3]
-        )
-
-        with col1:
-            st.markdown(
-                f'<div class="letter-box">{first_letter}</div>',
-                unsafe_allow_html=True
-            )
-
-        with col2:
-            st.markdown(
-                f'<div class="letter-box">{last_letter}</div>',
-                unsafe_allow_html=True
-            )
-
-        with spacer1:
-            st.markdown("")
-
-        with col3:
-            answer_value = st.text_input(
-    label=f"{key}",
-    value=st.session_state.answers.get(key, ""),
-    label_visibility="collapsed",
-    disabled=remaining == 0,
-    key=f"input_{key}",
-    autocomplete="off"
+st.markdown(
+    '<div class="subtitle">Match the initials. Name the celebrity. Beat your friends.</div>',
+    unsafe_allow_html=True
 )
 
-            st.session_state.answers[key] = answer_value
 
-        with spacer2:
-            st.markdown("")
 
-        with col4:
-            if (st.session_state.submitted or remaining == 0) and key in correct_keys:
-                st.markdown('<div class="correct-label">✅</div>', unsafe_allow_html=True)
+side,main=st.columns([1.1,3])
 
-            elif (st.session_state.submitted or remaining == 0) and key in close_keys:
-                st.markdown('<div class="close-label">🟡</div>', unsafe_allow_html=True)
 
-            elif (st.session_state.submitted or remaining == 0) and key in wrong_keys:
-                st.markdown('<div class="wrong-label">❌</div>', unsafe_allow_html=True)
+with side:
 
-            else:
-                st.markdown("")
+    st.markdown(
+        '<div class="sidebar-box">',
+        unsafe_allow_html=True
+    )
 
-        st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
+    st.subheader(st.session_state.mode)
 
-if remaining == 0:
-    st.error("Time is up!")
+    st.write(today)
+
+    st.metric(
+        "Time Left",
+        f"{minutes}:{seconds:02d}"
+    )
+
+    st.metric(
+        "Score",
+        f"{score}/20"
+    )
+
+
+    if st.button("Submit"):
+
+        st.session_state.submitted=True
+
+
+    if st.button("Daily Puzzle"):
+
+        start_daily()
+
+        st.rerun()
+
+
+    if st.button("Random Game"):
+
+        start_random()
+
+        st.rerun()
+
+
+    st.write("✅ Correct")
+    st.write("❌ Incorrect")
+
+
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True
+    )
+
+
+with main:
+
+    for a,b in st.session_state.board.items():
+
+        key=a+b
+
+
+        c1,c2,space,c3,c4=st.columns(
+            [0.5,0.5,.3,3,.5]
+        )
+
+
+        with c1:
+
+            st.markdown(
+                f'<div class="letter-box">{a}</div>',
+                unsafe_allow_html=True
+            )
+
+
+        with c2:
+
+            st.markdown(
+                f'<div class="letter-box">{b}</div>',
+                unsafe_allow_html=True
+            )
+
+
+        with c3:
+
+            ans=st.text_input(
+                "",
+                key=f"input_{key}",
+                disabled=st.session_state.submitted
+            )
+
+            st.session_state.answers[key]=ans
+
+
+        with c4:
+
+            if key in correct:
+
+                st.markdown(
+                    '<div class="correct-label">✅</div>',
+                    unsafe_allow_html=True
+                )
+
+            elif key in wrong:
+
+                st.markdown(
+                    '<div class="wrong-label">❌</div>',
+                    unsafe_allow_html=True
+                )
+
+
+        st.markdown(
+            '<div class="row-divider"></div>',
+            unsafe_allow_html=True
+        )
